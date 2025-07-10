@@ -1,0 +1,190 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latest News - UPSC News Hub</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <meta name="theme-color" content="#2c3e50">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">📰 UPSC News Hub</a>
+            <div class="d-flex align-items-center">
+                <span class="text-light me-3">Welcome, {{ session.get('username', 'Guest') }}</span>
+                <button id="darkModeToggle" class="btn btn-light btn-sm me-2">🌙 Dark Mode</button>
+                <a href="{{ url_for('user_logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <h1 class="text-center">🕒 Latest News</h1>
+        <p class="text-center">Stay updated with the most recent news articles for UPSC preparation.</p>
+
+        <div class="d-flex justify-content-between mb-4">
+            <a href="{{ url_for('home') }}" class="btn btn-secondary">🏠 Back to Home</a>
+            <div>
+                <a href="{{ url_for('show_bookmarks') }}" class="btn btn-outline-primary">🔖 My Bookmarks</a>
+                <a href="{{ url_for('show_notes') }}" class="btn btn-outline-primary">📝 My Notes</a>
+            </div>
+        </div>
+
+        {% if results %}
+        <ul class="list-group">
+            {% for article in results %}
+            <li class="list-group-item mb-3">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5>{{ article.title }}</h5>
+                        <h6 class="text-muted">📅 Published: {{ article.date }} | 📰 Source: {{ article.newspaper }}</h6>
+                        <p><strong>📖 GS Paper:</strong> {{ article.gs_paper }}</p>
+                        <p>{{ article.summary }}</p>
+                    </div>
+                    <div class="d-flex flex-column">
+                        <button class="btn btn-sm btn-outline-primary mb-2 bookmark-btn" data-id="{{ article.id }}" 
+                            {% if bookmarked_ids and article.id in bookmarked_ids %}
+                                style="display:none;"
+                            {% endif %}>
+                            🔖 Bookmark
+                        </button>
+                        <button class="btn btn-sm btn-success mb-2 bookmarked-btn" data-id="{{ article.id }}"
+                            {% if not bookmarked_ids or article.id not in bookmarked_ids %}
+                                style="display:none;"
+                            {% endif %}>
+                            ✅ Bookmarked
+                        </button>
+                        <a href="{{ url_for('manage_notes', article_id=article.id) }}" class="btn btn-sm btn-outline-secondary mb-2">📝 Notes</a>
+                        <a href="{{ article.link }}" target="_blank" class="btn btn-sm btn-primary">Read More</a>
+                    </div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if current_page > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1" aria-label="First">
+                        <span aria-hidden="true">&laquo;&laquo; First</span>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ current_page - 1 }}" aria-label="Previous">
+                        <span aria-hidden="true">&laquo; Previous</span>
+                    </a>
+                </li>
+                {% endif %}
+                
+                {% for page_num in range(1, total_pages + 1) %}
+                    {% if page_num >= current_page - 2 and page_num <= current_page + 2 %}
+                    <li class="page-item {% if page_num == current_page %}active{% endif %}">
+                        <a class="page-link" href="?page={{ page_num }}">{{ page_num }}</a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if current_page < total_pages %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ current_page + 1 }}" aria-label="Next">
+                        <span aria-hidden="true">Next &raquo;</span>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ total_pages }}" aria-label="Last">
+                        <span aria-hidden="true">Last &raquo;&raquo;</span>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% else %}
+        <p class="text-center text-danger">❌ No latest news available.</p>
+        {% endif %}
+    </div>
+
+    <script src="{{ url_for('static', filename='js/idb.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.bookmark-btn, .bookmarked-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const articleId = this.getAttribute('data-id');
+                    const isBookmarked = this.classList.contains('bookmarked-btn');
+                    
+                    if (navigator.onLine) {
+                        fetch(`/bookmark/${articleId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                toggleBookmarkButtons(articleId, !isBookmarked);
+                                updateLocalBookmark(articleId, !isBookmarked);
+                            }
+                        });
+                    } else {
+                        toggleBookmarkButtons(articleId, !isBookmarked);
+                        updateLocalBookmark(articleId, !isBookmarked);
+                        
+                        if (window.idbPromise) {
+                            idbPromise.addToSyncQueue({
+                                type: 'bookmark',
+                                articleId: articleId,
+                                bookmarked: !isBookmarked,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                    }
+                });
+            });
+            
+            function toggleBookmarkButtons(articleId, isBookmarked) {
+                const bookmarkBtn = document.querySelector(`.bookmark-btn[data-id="${articleId}"]`);
+                const bookmarkedBtn = document.querySelector(`.bookmarked-btn[data-id="${articleId}"]`);
+                
+                if (isBookmarked) {
+                    bookmarkBtn.style.display = 'none';
+                    bookmarkedBtn.style.display = 'block';
+                } else {
+                    bookmarkBtn.style.display = 'block';
+                    bookmarkedBtn.style.display = 'none';
+                }
+            }
+            
+            function updateLocalBookmark(articleId, isBookmarked) {
+                if (!window.idbPromise) return;
+                
+                const articleElement = document.querySelector(`[data-id="${articleId}"]`).closest('.list-group-item');
+                const title = articleElement.querySelector('h5').textContent;
+                const gsPaper = articleElement.querySelector('strong').nextSibling.textContent.trim();
+                const link = articleElement.querySelector('a[target="_blank"]').getAttribute('href');
+                
+                if (isBookmarked) {
+                    idbPromise.add('bookmarks', {
+                        id: articleId,
+                        article_id: articleId,
+                        title: title,
+                        gs_paper: gsPaper,
+                        link: link,
+                        date_added: new Date().toISOString(),
+                        user_id: 1
+                    }).catch(error => console.error('Error saving bookmark locally:', error));
+                } else {
+                    idbPromise.delete('bookmarks', articleId)
+                        .catch(error => console.error('Error removing bookmark locally:', error));
+                }
+            }
+        });
+    </script>
+</body>
+</html>

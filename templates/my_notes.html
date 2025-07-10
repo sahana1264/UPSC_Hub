@@ -1,0 +1,219 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Notes - UPSC News Hub</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <meta name="theme-color" content="#2c3e50">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">📰 UPSC News Hub</a>
+            <div class="d-flex align-items-center">
+                <span class="text-light me-3">Welcome, {{ session.get('username', 'Guest') }}</span>
+                <button id="darkModeToggle" class="btn btn-light btn-sm me-2">🌙 Dark Mode</button>
+                <a href="{{ url_for('user_logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">📝 My Notes</h1>
+        
+        <div class="d-flex justify-content-between mb-4">
+            <a href="{{ url_for('home') }}" class="btn btn-secondary">🏠 Back to Home</a>
+            <div>
+                <a href="{{ url_for('show_bookmarks') }}" class="btn btn-outline-primary">🔖 View Bookmarks</a>
+                <button id="exportNotes" class="btn btn-outline-success" onclick="window.location.href='/export/notes/pdf'">📥 Export as PDF</button>
+            </div>
+        </div>
+        
+        <div id="notesContainer">
+            {% if notes %}
+            <div class="row">
+                {% for note in notes %}
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ note.title }}</h5>
+                            <p class="card-text"><strong>📖 GS Paper:</strong> {{ note.gs_paper }}</p>
+                            <p class="card-text">{{ note.content[:150] }}{% if note.content|length > 150 %}...{% endif %}</p>
+                            <p class="card-text text-muted small">📅 Last updated: {{ note.last_updated }}</p>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <a href="{{ url_for('manage_notes', article_id=note.article_id) }}" class="btn btn-primary btn-sm">View/Edit Notes</a>
+                            <button class="btn btn-outline-danger btn-sm float-end delete-note" data-id="{{ note.id }}">Delete</button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center">
+                You haven't created any notes yet.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/idb.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggleButton = document.getElementById('darkModeToggle');
+            if (localStorage.getItem('darkMode') === 'true') {
+                document.body.classList.add('dark-mode');
+                toggleButton.textContent = '☀️ Light Mode';
+            }
+            
+            toggleButton.addEventListener('click', function() {
+                document.body.classList.toggle('dark-mode');
+                toggleButton.textContent = document.body.classList.contains('dark-mode') ? '☀️ Light Mode' : '🌙 Dark Mode';
+                localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+            });
+            
+            document.querySelectorAll('.delete-note').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    if (confirm('Are you sure you want to delete this note?')) {
+                        const noteId = this.getAttribute('data-id');
+                        
+                        if (navigator.onLine) {
+                            fetch(`/notes/delete/${noteId}`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                }
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    this.closest('.col-md-6').remove();
+                                    
+                                    if (window.idbPromise) {
+                                        idbPromise.delete('notes', parseInt(noteId))
+                                            .catch(error => console.error('Error removing note locally:', error));
+                                    }
+                                    
+                                    if (document.querySelectorAll('.col-md-6').length === 0) {
+                                        document.getElementById('notesContainer').innerHTML = `
+                                            <div class="alert alert-info text-center">
+                                                You haven't created any notes yet.
+                                            </div>
+                                        `;
+                                    }
+                                }
+                            });
+                        } else {
+                            if (window.idbPromise) {
+                                idbPromise.delete('notes', parseInt(noteId))
+                                    .then(() => {
+                                        this.closest('.col-md-6').remove();
+                                        
+                                        idbPromise.addToSyncQueue({
+                                            type: 'deleteNote',
+                                            noteId: noteId,
+                                            timestamp: new Date().toISOString()
+                                        });
+                                        
+                                        if (document.querySelectorAll('.col-md-6').length === 0) {
+                                            document.getElementById('notesContainer').innerHTML = `
+                                                <div class="alert alert-info text-center">
+                                                    You haven't created any notes yet.
+                                                </div>
+                                            `;
+                                        }
+                                    })
+                                    .catch(error => console.error('Error removing note locally:', error));
+                            }
+                        }
+                    }
+                });
+            });
+            
+            if (!navigator.onLine && window.idbPromise) {
+                loadOfflineNotes();
+            }
+            
+            function loadOfflineNotes() {
+                const notesContainer = document.getElementById('notesContainer');
+                
+                idbPromise.getAll('notes')
+                    .then(notes => {
+                        if (notes.length === 0) {
+                            notesContainer.innerHTML = `
+                                <div class="alert alert-info text-center">
+                                    You haven't created any notes yet.
+                                </div>
+                            `;
+                            return;
+                        }
+                        
+                        let notesHTML = '<div class="row">';
+                        
+                        notes.forEach(note => {
+                            const content = note.content.length > 150 ? 
+                                note.content.substring(0, 150) + '...' : 
+                                note.content;
+                            
+                            const lastUpdated = new Date(note.last_updated).toLocaleDateString();
+                            
+                            notesHTML += `
+                                <div class="col-md-6 mb-4">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <h5 class="card-title">${note.title}</h5>
+                                            <p class="card-text"><strong>📖 GS Paper:</strong> ${note.gs_paper}</p>
+                                            <p class="card-text">${content}</p>
+                                            <p class="card-text text-muted small">📅 Last updated: ${lastUpdated}</p>
+                                        </div>
+                                        <div class="card-footer bg-transparent">
+                                            <a href="/notes/${note.article_id}" class="btn btn-primary btn-sm">View/Edit Notes</a>
+                                            <button class="btn btn-outline-danger btn-sm float-end delete-note" data-id="${note.id}">Delete</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        notesHTML += '</div>';
+                        notesContainer.innerHTML = notesHTML;
+                        
+                        document.querySelectorAll('.delete-note').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                if (confirm('Are you sure you want to delete this note?')) {
+                                    const noteId = parseInt(this.getAttribute('data-id'));
+                                    
+                                    idbPromise.delete('notes', noteId)
+                                        .then(() => {
+                                            this.closest('.col-md-6').remove();
+                                            
+                                            idbPromise.addToSyncQueue({
+                                                type: 'deleteNote',
+                                                noteId: noteId,
+                                                timestamp: new Date().toISOString()
+                                            });
+                                            
+                                            if (document.querySelectorAll('.col-md-6').length === 0) {
+                                                document.getElementById('notesContainer').innerHTML = `
+                                                    <div class="alert alert-info text-center">
+                                                        You haven't created any notes yet.
+                                                    </div>
+                                                `;
+                                            }
+                                        })
+                                        .catch(error => console.error('Error removing note locally:', error));
+                                }
+                            });
+                        });
+                    });
+            }
+        });
+    </script>
+</body>
+</html>

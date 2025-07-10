@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline - UPSC News Hub</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <meta name="theme-color" content="#2c3e50">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+        }
+        
+        .container {
+            max-width: 600px;
+            padding: 30px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+        }
+        
+        .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+        
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        
+        .offline-options {
+            margin-top: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .offline-option {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .offline-option:hover {
+            background-color: #e9ecef;
+        }
+        
+        .dark-mode {
+            background-color: #121212;
+            color: #f8f9fa;
+        }
+        
+        .dark-mode .container {
+            background-color: #1e1e1e;
+            color: #f8f9fa;
+        }
+        
+        .dark-mode h1 {
+            color: #f8f9fa;
+        }
+        
+        .dark-mode .offline-option {
+            background-color: #2d2d2d;
+        }
+        
+        .dark-mode .offline-option:hover {
+            background-color: #3d3d3d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">🔌</div>
+        <h1>You're Offline</h1>
+        <p>It looks like you don't have an internet connection right now.</p>
+        <p>You can still access your saved bookmarks and notes.</p>
+        
+        <div class="offline-options">
+            <div class="offline-option" id="viewBookmarks">
+                <h3>📚 View My Bookmarks</h3>
+                <p>Access your saved articles</p>
+            </div>
+            <div class="offline-option" id="viewNotes">
+                <h3>📝 View My Notes</h3>
+                <p>Access your study notes</p>
+            </div>
+        </div>
+        
+        <button class="btn" id="retryConnection">Try Again</button>
+    </div>
+    
+    <script>
+        // Check if dark mode is enabled
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark-mode');
+        }
+        
+        // Check if we're back online
+        function checkOnlineStatus() {
+            if (navigator.onLine) {
+                window.location.reload();
+            }
+        }
+        
+        // Setup event listeners
+        document.getElementById('retryConnection').addEventListener('click', checkOnlineStatus);
+        
+        document.getElementById('viewBookmarks').addEventListener('click', function() {
+            window.location.href = '/bookmarks';
+        });
+        
+        document.getElementById('viewNotes').addEventListener('click', function() {
+            window.location.href = '/my_notes';
+        });
+        
+        // Check online status when network status changes
+        window.addEventListener('online', checkOnlineStatus);
+    </script>
+</body>
+</html>

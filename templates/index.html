@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPSC News Hub</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <meta name="theme-color" content="#2c3e50">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">📰 UPSC News Hub</a>
+            <div class="d-flex align-items-center">
+                <span class="text-light me-3">Welcome, {{ username }}</span>
+                <button id="darkModeToggle" class="btn btn-light btn-sm me-2">🌙 Dark Mode</button>
+                <a href="{{ url_for('user_logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container text-center">
+        <h1 class="mb-4">📰 UPSC News Hub</h1>
+        <p class="lead">Stay updated with the latest news and classify them into GS Papers automatically!</p>
+
+        <form action="{{ url_for('search_results') }}" method="get" class="mt-4">
+            <label for="gs_paper">📚 Select GS Paper:</label>
+            <select name="gs_paper" id="gs_paper" class="form-control" style="max-width: 300px; margin: 0 auto;">
+                <option value="GS1">GS1 - History & Culture</option>
+                <option value="GS2">GS2 - Polity & Governance</option>
+                <option value="GS3">GS3 - Economy & Science</option>
+                <option value="GS4">GS4 - Ethics & Integrity</option>
+            </select>
+            <button type="submit" class="btn btn-primary mt-3">🔎 Search</button>
+        </form>
+
+        <div class="mt-4">
+            <a href="{{ url_for('show_latest_news') }}" class="btn btn-primary btn-lg me-2">📢 View Latest News</a>
+            <a href="{{ url_for('show_bookmarks') }}" class="btn btn-outline-primary btn-lg me-2">🔖 My Bookmarks</a>
+            <a href="{{ url_for('show_notes') }}" class="btn btn-outline-primary btn-lg">📝 My Notes</a>
+        </div>
+
+        <div class="mt-5">
+            <h3>🔥 Trending Topics</h3>
+            <div class="trending-container mt-3">
+                {% for topic in trending_topics %}
+                <a href="{{ url_for('search_results', gs_paper='GS2') }}" class="btn btn-outline-primary btn-sm">#{{ topic }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div class="mt-5">
+            <h3>📱 Offline Access</h3>
+            <p>Your bookmarks and notes are available offline. Just visit this site when you're not connected to the internet.</p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/idb.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

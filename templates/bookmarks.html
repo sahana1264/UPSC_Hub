@@ -1,0 +1,232 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Bookmarks - UPSC News Hub</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <meta name="theme-color" content="#2c3e50">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">📰 UPSC News Hub</a>
+            <div class="d-flex align-items-center">
+                <span class="text-light me-3">Welcome, {{ session.get('username', 'Guest') }}</span>
+                <button id="darkModeToggle" class="btn btn-light btn-sm me-2">🌙 Dark Mode</button>
+                <a href="{{ url_for('user_logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">🔖 My Bookmarks</h1>
+        
+        <div class="d-flex justify-content-between mb-4">
+            <a href="{{ url_for('home') }}" class="btn btn-secondary">🏠 Back to Home</a>
+            <div>
+                <a href="{{ url_for('show_notes') }}" class="btn btn-outline-primary">📝 View My Notes</a>
+                <button id="exportBookmarks" class="btn btn-outline-success" onclick="window.location.href='/export/bookmarks/pdf'">📥 Export as PDF</button>
+            </div>
+        </div>
+        
+        <div id="bookmarksContainer">
+            {% if bookmarks %}
+            <div class="row">
+                {% for bookmark in bookmarks %}
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ bookmark.title }}</h5>
+                            <p class="card-text"><strong>📖 GS Paper:</strong> {{ bookmark.gs_paper }}</p>
+                            <p class="card-text summary">{{ bookmark.summary }}</p>
+                            <p class="card-text text-muted small">📅 Bookmarked on: {{ bookmark.date_added }}</p>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <a href="{{ bookmark.link }}" class="btn btn-primary btn-sm">Read Article</a>
+                            <a href="{{ url_for('manage_notes', article_id=bookmark.article_id) }}" class="btn btn-outline-secondary btn-sm">View/Add Notes</a>
+                            <button class="btn btn-outline-danger btn-sm float-end remove-bookmark" data-id="{{ bookmark.id }}" data-article-id="{{ bookmark.article_id }}">Remove</button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center">
+                You haven't bookmarked any articles yet.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/idb.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Setup dark mode toggle
+            const toggleButton = document.getElementById('darkModeToggle');
+            if (localStorage.getItem('darkMode') === 'true') {
+                document.body.classList.add('dark-mode');
+                toggleButton.textContent = '☀️ Light Mode';
+            }
+            
+            toggleButton.addEventListener('click', function() {
+                document.body.classList.toggle('dark-mode');
+                toggleButton.textContent = document.body.classList.contains('dark-mode') ? '☀️ Light Mode' : '🌙 Dark Mode';
+                localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+            });
+            
+            // Setup remove bookmark buttons
+            document.querySelectorAll('.remove-bookmark').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const bookmarkId = this.getAttribute('data-id');
+                    const articleId = this.getAttribute('data-article-id');
+                    
+                    if (confirm('Are you sure you want to remove this bookmark?')) {
+                        if (navigator.onLine) {
+                            fetch(`/bookmark/${articleId}`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                }
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    this.closest('.col-md-6').remove();
+                                    
+                                    // Also remove from IndexedDB
+                                    if (window.idbPromise) {
+                                        idbPromise.delete('bookmarks', parseInt(bookmarkId))
+                                            .catch(error => console.error('Error removing bookmark locally:', error));
+                                    }
+                                    
+                                    // Check if there are no more bookmarks
+                                    if (document.querySelectorAll('.col-md-6').length === 0) {
+                                        document.getElementById('bookmarksContainer').innerHTML = `
+                                            <div class="alert alert-info text-center">
+                                                You haven't bookmarked any articles yet.
+                                            </div>
+                                        `;
+                                    }
+                                }
+                            });
+                        } else {
+                            // If offline, just remove from IndexedDB and queue for sync
+                            if (window.idbPromise) {
+                                idbPromise.delete('bookmarks', parseInt(bookmarkId))
+                                    .then(() => {
+                                        this.closest('.col-md-6').remove();
+                                        
+                                        // Add to sync queue
+                                        idbPromise.addToSyncQueue({
+                                            type: 'removeBookmark',
+                                            bookmarkId: bookmarkId,
+                                            articleId: articleId,
+                                            timestamp: new Date().toISOString()
+                                        });
+                                        
+                                        // Check if there are no more bookmarks
+                                        if (document.querySelectorAll('.col-md-6').length === 0) {
+                                            document.getElementById('bookmarksContainer').innerHTML = `
+                                                <div class="alert alert-info text-center">
+                                                    You haven't bookmarked any articles yet.
+                                                </div>
+                                            `;
+                                        }
+                                    })
+                                    .catch(error => console.error('Error removing bookmark locally:', error));
+                            }
+                        }
+                    }
+                });
+            });
+            
+            // If offline, load bookmarks from IndexedDB
+            if (!navigator.onLine && window.idbPromise) {
+                loadOfflineBookmarks();
+            }
+            
+            function loadOfflineBookmarks() {
+                const bookmarksContainer = document.getElementById('bookmarksContainer');
+                
+                idbPromise.getAll('bookmarks')
+                    .then(bookmarks => {
+                        if (bookmarks.length === 0) {
+                            bookmarksContainer.innerHTML = `
+                                <div class="alert alert-info text-center">
+                                    You haven't bookmarked any articles yet.
+                                </div>
+                            `;
+                            return;
+                        }
+                        
+                        let bookmarksHTML = '<div class="row">';
+                        
+                        bookmarks.forEach(bookmark => {
+                            const dateAdded = new Date(bookmark.date_added).toLocaleDateString();
+                            
+                            bookmarksHTML += `
+                                <div class="col-md-6 mb-4">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <h5 class="card-title">${bookmark.title}</h5>
+                                            <p class="card-text"><strong>📖 GS Paper:</strong> ${bookmark.gs_paper}</p>
+                                            <p class="card-text summary">${bookmark.summary}</p>
+                                            <p class="card-text text-muted small">📅 Bookmarked on: ${dateAdded}</p>
+                                        </div>
+                                        <div class="card-footer bg-transparent">
+                                            <a href="${bookmark.link}" class="btn btn-primary btn-sm">Read Article</a>
+                                            <a href="/notes/${bookmark.article_id}" class="btn btn-outline-secondary btn-sm">View/Add Notes</a>
+                                            <button class="btn btn-outline-danger btn-sm float-end remove-bookmark" data-id="${bookmark.id}" data-article-id="${bookmark.article_id}">Remove</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        bookmarksHTML += '</div>';
+                        bookmarksContainer.innerHTML = bookmarksHTML;
+                        
+                        // Setup remove buttons for offline bookmarks
+                        document.querySelectorAll('.remove-bookmark').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                const bookmarkId = parseInt(this.getAttribute('data-id'));
+                                const articleId = this.getAttribute('data-article-id');
+                                
+                                if (confirm('Are you sure you want to remove this bookmark?')) {
+                                    // Delete from IndexedDB
+                                    idbPromise.delete('bookmarks', bookmarkId)
+                                        .then(() => {
+                                            this.closest('.col-md-6').remove();
+                                            
+                                            // Add to sync queue
+                                            idbPromise.addToSyncQueue({
+                                                type: 'removeBookmark',
+                                                bookmarkId: bookmarkId,
+                                                articleId: articleId,
+                                                timestamp: new Date().toISOString()
+                                            });
+                                            
+                                            // Check if there are no more bookmarks
+                                            if (document.querySelectorAll('.col-md-6').length === 0) {
+                                                document.getElementById('bookmarksContainer').innerHTML = `
+                                                    <div class="alert alert-info text-center">
+                                                        You haven't bookmarked any articles yet.
+                                                    </div>
+                                                `;
+                                            }
+                                        })
+                                        .catch(error => console.error('Error removing bookmark locally:', error));
+                                }
+                            });
+                        });
+                    });
+            }
+        });
+    </script>
+</body>
+</html>

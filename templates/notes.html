@@ -1,0 +1,168 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes - UPSC News Hub</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <meta name="theme-color" content="#2c3e50">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">📰 UPSC News Hub</a>
+            <div class="d-flex align-items-center">
+                <span class="text-light me-3">Welcome, {{ session.get('username', 'Guest') }}</span>
+                <button id="darkModeToggle" class="btn btn-light btn-sm me-2">🌙 Dark Mode</button>
+                <a href="{{ url_for('user_logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>📝 Notes for: {{ article.title }}</h1>
+            <a href="{{ url_for('home') }}" class="btn btn-secondary">🏠 Back to Home</a>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Article Details</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>📖 GS Paper:</strong> {{ article.gs_paper }}</p>
+                <p><strong>📅 Date:</strong> {{ article.date }}</p>
+                <p><strong>Summary:</strong> {{ article.summary }}</p>
+                <a href="{{ article.link }}" target="_blank" class="btn btn-primary btn-sm">Read Full Article</a>
+            </div>
+        </div>
+        
+        <form method="POST" id="notesForm">
+            <div class="mb-3">
+                <label for="content" class="form-label">Your Notes</label>
+                <textarea class="form-control" id="content" name="content" rows="10" required>{% if note %}{{ note.content }}{% endif %}</textarea>
+            </div>
+            <div class="d-flex justify-content-between">
+                <div>
+                    <button type="submit" class="btn btn-primary">Save Notes</button>
+                    <a href="{{ url_for('show_notes') }}" class="btn btn-outline-secondary">Back to All Notes</a>
+                </div>
+                <div>
+                    <button type="button" id="exportNote" class="btn btn-outline-success" onclick="exportNoteAsPDF()">Export as PDF</button>
+                </div>
+            </div>
+        </form>
+        
+        <div class="mt-4" id="saveStatus" style="display: none;"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/idb.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggleButton = document.getElementById('darkModeToggle');
+            if (localStorage.getItem('darkMode') === 'true') {
+                document.body.classList.add('dark-mode');
+                toggleButton.textContent = '☀️ Light Mode';
+            }
+            
+            toggleButton.addEventListener('click', function() {
+                document.body.classList.toggle('dark-mode');
+                toggleButton.textContent = document.body.classList.contains('dark-mode') ? '☀️ Light Mode' : '🌙 Dark Mode';
+                localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+            });
+            
+            const notesForm = document.getElementById('notesForm');
+            const saveStatus = document.getElementById('saveStatus');
+            
+            notesForm.addEventListener('submit', function(e) {
+                if (!navigator.onLine) {
+                    e.preventDefault();
+                    
+                    const articleId = window.location.pathname.split('/').pop();
+                    const content = document.getElementById('content').value;
+                    
+                    saveNoteLocally(articleId, content);
+                    
+                    saveStatus.innerHTML = `
+                        <div class="alert alert-warning">
+                            <strong>Note saved locally.</strong> It will sync with the server when you're back online.
+                        </div>
+                    `;
+                    saveStatus.style.display = 'block';
+                }
+            });
+            
+            function exportNoteAsPDF() {
+                const content = document.getElementById('content').value;
+                const title = document.querySelector('h1').textContent.replace('📝 Notes for: ', '');
+                
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/export/single-note/pdf';
+                
+                const titleInput = document.createElement('input');
+                titleInput.type = 'hidden';
+                titleInput.name = 'title';
+                titleInput.value = title;
+                form.appendChild(titleInput);
+                
+                const contentInput = document.createElement('input');
+                contentInput.type = 'hidden';
+                contentInput.name = 'content';
+                contentInput.value = content;
+                form.appendChild(contentInput);
+                
+                document.body.appendChild(form);
+                form.submit();
+            }
+            
+            function saveNoteLocally(articleId, content) {
+                if (!window.idbPromise) return;
+                
+                const articleTitle = document.querySelector('h1').textContent.replace('📝 Notes for: ', '');
+                const gsPaper = document.querySelector('strong').nextSibling.textContent.trim();
+                
+                idbPromise.openDB()
+                    .then(db => {
+                        const transaction = db.transaction('notes', 'readwrite');
+                        const store = transaction.objectStore('notes');
+                        const index = store.index('article_id');
+                        const request = index.get(articleId);
+                        
+                        request.onsuccess = function() {
+                            const note = request.result;
+                            
+                            if (note) {
+                                note.content = content;
+                                note.last_updated = new Date().toISOString();
+                                store.put(note);
+                            } else {
+                                store.add({
+                                    id: Date.now(),
+                                    user_id: 1,
+                                    article_id: articleId,
+                                    title: articleTitle,
+                                    gs_paper: gsPaper,
+                                    content: content,
+                                    last_updated: new Date().toISOString()
+                                });
+                            }
+                            
+                            idbPromise.addToSyncQueue({
+                                type: 'note',
+                                articleId: articleId,
+                                content: content,
+                                timestamp: new Date().toISOString()
+                            });
+                        };
+                    })
+                    .catch(error => console.error('Error saving note locally:', error));
+            }
+        });
+    </script>
+</body>
+</html>

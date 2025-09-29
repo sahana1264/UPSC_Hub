@@ -28,11 +28,6 @@ A full-stack Progressive Web Application (PWA) built for UPSC aspirants, utilizi
 
   ## 🚀 Quick Start
 
-### Prerequisites
-- Python 3.8 or higher
-- pip (Python package installer)
-- 4GB+ RAM (for ML models)
-
 ### Installation
 
 1. **Clone the repository**
@@ -43,9 +38,8 @@ A full-stack Progressive Web Application (PWA) built for UPSC aspirants, utilizi
 
 2. **Install dependencies**
    ```bash
-  pip install -r requirements.txt
+    pip install -r requirements.txt
    ```
-
 
 4. **Run the application**
    ```bash

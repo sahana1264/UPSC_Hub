@@ -128,4 +128,20 @@ The application fetches news from these sources (configurable in `app.py`):
 - `GET /export/bookmarks/pdf` - Export bookmarks as PDF
 - `GET /export/notes/pdf` - Export notes as PDF
 
+  ### 📸 Project Screenshots
+
+#### 1. Home Dashboard 
+
+![Home Dashboard Screenshot](screenshots/index.png)
+
+#### 2. Real Time News
+
+![Notes Page Screenshot](screenshots/latest_news.png)
+
+
+#### 3. Offline Notes Management and bookmarks
+
+![Notes Page Screenshot](screenshots/Mynotes.png)
+![Notes Page Screenshot](screenshots/bookmark.png)
+
 Made for UPSC aspirants

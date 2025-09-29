@@ -141,7 +141,7 @@ The application fetches news from these sources (configurable in `app.py`):
 
 #### 3. Offline Notes Management and bookmarks
 
-![Notes Page Screenshot](screenshots/Mynotes.png)
+![Notes Page Screenshot](screenshots/MyNotes.png)
 ![Notes Page Screenshot](screenshots/bookmark.png)
 
 Made for UPSC aspirants

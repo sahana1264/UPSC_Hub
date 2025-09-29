@@ -52,7 +52,7 @@ A full-stack Progressive Web Application (PWA) built for UPSC aspirants, utilizi
    ## 🔧 Configuration
 
 ### RSS Feeds
-The application fetches news from these sources (configurable in `src/app.py`):
+The application fetches news from these sources (configurable in `app.py`):
 - The Hindu: National news RSS
 - Indian Express: India section RSS
 - Times of India: Top stories RSS
@@ -128,3 +128,4 @@ The application fetches news from these sources (configurable in `src/app.py`):
 - `GET /export/bookmarks/pdf` - Export bookmarks as PDF
 - `GET /export/notes/pdf` - Export notes as PDF
 
+Made for UPSC aspirants
